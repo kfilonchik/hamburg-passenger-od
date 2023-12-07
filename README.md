@@ -1,6 +1,6 @@
-# hamburg-passenger-od
+# Estimation individual travel routes using boarding and alighting counts within Hamburg City Train Network using Hidden Markov Model. 
 
-### Estimation individual travel routes using boarding and alighting counts within Hamburg City Train Network using Hidden Markov Model. 
+### Dataset
 
 Dataset was obtained from https://data.deutschebahn.com/dataset/passagierzahlung-s-bahn-hamburg/resource/480dc561-1417-4176-bbd6-8c60f01f6f47.html
 The model was trained using only S1 data.
