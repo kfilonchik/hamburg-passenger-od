@@ -1,8 +1,8 @@
 import pandas as pd
 from hmmlearn import hmm
 import numpy as np
-from sklearn.preprocessing import LabelEncoder, StandardScaler
 import numpy as np
+from sklearn.preprocessing import Normalizer
 
 class DataPreprocessing:
 
@@ -35,15 +35,9 @@ class DataPreprocessing:
 
         return dataset
     
+    
     def hidden_states(self, df):
-        stations = df.loc[df['sBahnID'] == 'S1']['Station'].unique()
-        #df['StationSequence']  = df.groupby('TrainID')['Station'].transform(lambda x: ','.join(x))
-        #stations =  df[['StationSequence']].drop_duplicates().reset_index(drop=True).apply(list)
-        #f = df[['StationSequence']].drop_duplicates().reset_index(drop=True)
-        #print(stations)
-        #enumerated_journeys = {index: journey for index, journey in enumerate(f)}
-
-        #print(enumerated_journeys)
+        stations = df['Station'].unique()
         
         return len(stations)
     
@@ -56,24 +50,13 @@ class DataPreprocessing:
         station_to_index = {station: idx for idx, station in enumerate(df['Station'].unique())}
         index_to_station = {idx: station for station, idx in station_to_index.items()}
 
-        # Prepare observations for HMM
-        #observations = df[['Boardings', 'Alightings']].values.tolist()
-        #sequences = np.array(observations)
-       #observations = [obs for sequence in sequences for obs in sequence]
-        #lengths = [len(sequence) for sequence in sequences]
-
-
         return observations, lengths, index_to_station
     
     def going_to_next_station(self,df):
         grouped = df.groupby(['TrainID', 'ArrivalDate'])
         df['on_train'] = grouped['Boardings'].transform(lambda x: x) - grouped['Alightings'].transform(lambda x: x)
         df['going_next_station'] = grouped['on_train'].cumsum()
-        '''for i in df["TrainID"].unique():
-            for date in df.loc[(df['TrainID'] == i)]['ArrivalDate'].unique():
-                df.loc[(df['TrainID'] == i) & (df['ArrivalDate'] == date), 'on_train'] = df.loc[(df['TrainID'] == i) & (df['ArrivalDate'] == date)]['Boardings'] - df.loc[(df['TrainID'] == i) & (df['ArrivalDate'] == date)]['Alightings']
-                df.loc[(df['TrainID'] == i) & (df['ArrivalDate'] == date), 'going_next_station'] = df.loc[(df['TrainID'] == i)  & (df['ArrivalDate'] == date)]['on_train'].cumsum()
-        '''
+      
         return df
     
 
@@ -82,21 +65,25 @@ class DataPreprocessing:
         n_stations = len(stations)
         emission_probabilities = np.zeros((n_stations, 2))
 
-        total_boardings = df['Boardings'].sum()
+        smoothing_constant = 1e-8
+
+        total_boardings = df['Boardings'].sum() + smoothing_constant * len(df['Station'].unique())
         total_alightings = df['Alightings'].sum()
 
-        for i, station in enumerate(stations):
-            # Calculate boarding probability
-            #total_boardings = df[df['Station'] == station]['Boardings'].sum()
-            avg_boardings = df[df['Station'] == station]['Boardings'].mean() / total_boardings if total_boardings > 0 else 0
 
-            # Calculate alighting probability
-            #total_alightings = df[df['Station'] == station]['Alightings'].sum()
-            avg_alightings = df[df['Station'] == station]['Alightings'].sum() / total_alightings if total_alightings > 0 else 0
+
+        for i, station in enumerate(stations):
+           
+            avg_boardings = df[df['Station'] == station]['Boardings'].mean() + smoothing_constant / total_boardings if total_boardings > 0 else 0
+            avg_alightings = df[df['Station'] == station]['Alightings'].sum() + smoothing_constant / total_alightings if total_alightings > 0 else 0
 
             # Populate the emission probabilities
             emission_probabilities[i, 0] = avg_boardings
             emission_probabilities[i, 1] = avg_alightings
+
+        # Check for NaN values
+        if np.isnan(emission_probabilities).any():
+            mission_probabilities = np.nan_to_num(mission_probabilities)
 
         return emission_probabilities
     
@@ -106,14 +93,21 @@ class DataPreprocessing:
         total_boardings = df['Boardings'].sum()
         station_boardings = df.groupby('Station')['Boardings'].sum().reset_index()
 
+            # Adding a small constant for smoothing
+        smoothing_constant = 1e-8
+
+        # Calculate the total number of boardings
+        total_boardings = df['Boardings'].sum() + smoothing_constant * len(df['Station'].unique())
+        station_boardings = df.groupby('Station')['Boardings'].sum().reset_index()
 
         # Calculate the probability of starting from each station
-        station_boardings['Start_Prob'] = station_boardings['Boardings'] / total_boardings
+        station_boardings['Start_Prob'] = (station_boardings['Boardings'] + smoothing_constant) / total_boardings
 
-        # Create the initial state distribution
-        initial_state_distribution = station_boardings['Start_Prob'].values
-
-        return np.array(initial_state_distribution)
+        # Normalize to ensure it sums to 1
+        normalized_startprob = station_boardings['Start_Prob'].values
+        normalized_startprob /= np.sum(normalized_startprob)
+        
+        return np.array(normalized_startprob)
 
 
     def calculate_transition_matrix(self, df):
@@ -130,16 +124,28 @@ class DataPreprocessing:
         n_stations = len(aggregated_data)
         transition_matrix = np.zeros((n_stations, n_stations))
 
+        smoothing_constant = 1e-8
+
         for i in range(n_stations - 1):
-            transition_matrix[i, i + 1] = aggregated_data.iloc[i]['Transition_Prob']
+            transition_matrix[i, i + 1] = aggregated_data.iloc[i]['Transition_Prob']  + smoothing_constant
 
         # The last station has no further stations, so we set its probability to stay there as 1
         transition_matrix[-1, -1] = 1
 
-        normalized_transition_matrix = np.zeros_like(transition_matrix)
+        #normalized_transition_matrix = np.zeros_like(transition_matrix)
+        #transition_matrix[-1, -1] = 1
 
-        for i in range(len(transition_matrix)):
+        # Normalize the transition matrix
+        for i in range(n_stations):
             row_sum = np.sum(transition_matrix[i])
+            if row_sum > 0:
+                transition_matrix[i] /= row_sum
+            else:
+                # Handle the case where no transitions occur
+                transition_matrix[i, i] = 1
+        '''
+        for i in range(len(transition_matrix)):
+            row_sum = np.sum(transition_matrix[i]) 
             if row_sum > 0:
                 normalized_transition_matrix[i] = transition_matrix[i] / row_sum
             else:
@@ -147,8 +153,13 @@ class DataPreprocessing:
                 # In such cases, you can handle it based on your specific scenario
                 # For example, set the transition to itself as 1
                 normalized_transition_matrix[i, i] = 1
+        '''
 
-        return normalized_transition_matrix
+        # Check for NaN values
+        if np.isnan(transition_matrix).any():
+            transition_matrix = np.nan_to_num(transition_matrix)
+
+        return transition_matrix
 
 
 
