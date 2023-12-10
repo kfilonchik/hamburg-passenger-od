@@ -32,33 +32,83 @@ class DataPreprocessing:
         dataset["Boardings"] = dataset['Boardings'].str.replace(',', '.').astype(float).astype(int)
         dataset["Alightings"] = dataset['Alightings'].str.replace(',', '.').astype(float).astype(int)
         dataset['ArrivalDate'] = dataset['Arrival'].dt.date
+        dataset['ArrivalHour'] = dataset['Arrival'].dt.hour
 
         return dataset
     
+    def add_trip_id(self, df):
+        # Initialize a column for TripID
+        df['TripID'] = 0        
+
+        # Variable to hold the current TripID
+        current_trip_id = 1
+        # Iterate over the DataFrame
+        for i in range(1, len(df)):
+            # Check if the current row is part of the same trip as the previous row
     
+            if df.iloc[i]['TrainID'] == df.iloc[i-1]['TrainID']:
+                # If it is the same train, assign the same TripID as the previous row
+
+                df.iloc[i, df.columns.get_loc('TripID')] = current_trip_id
+
+            else:
+             # If it's a different train, increment the TripID and assign it to the current row
+                current_trip_id += 1
+                df.iloc[i, df.columns.get_loc('TripID')] = current_trip_id
+        # Assign the first row a TripID (as the loop starts from the second row)
+
+        df.iloc[0, df.columns.get_loc('TripID')] = 1
+    
+        return df
+
+
     def hidden_states(self, df):
         stations = df['Station'].unique()
-        
+
         return len(stations)
     
     def observations(self, df):
-        sequences = df.groupby('TrainID').apply(lambda x: x[['Boardings', 'Alightings']].values.tolist())
+        stations = len(df['Station'].unique())
+        sequences = df.groupby('TripID').apply(lambda x: x[['Boardings', 'Alightings']].values.tolist())
         sequences = np.array(sequences)
-        observations = [obs for sequence in sequences for obs in sequence]
-        lengths = [len(sequence) for sequence in sequences]
+        #observations = [obs for sequence in sequences for obs in sequence]
         # Map station names to indices
         station_to_index = {station: idx for idx, station in enumerate(df['Station'].unique())}
         index_to_station = {idx: station for station, idx in station_to_index.items()}
+        observations = [seq + [(0, 0)] * (stations - len(seq)) for seq in sequences]
+        lengths = [len(sequence) for sequence in observations]
 
         return observations, lengths, index_to_station
     
     def going_to_next_station(self,df):
-        grouped = df.groupby(['TrainID', 'ArrivalDate'])
+        grouped = df.groupby(['TripID'])
         df['on_train'] = grouped['Boardings'].transform(lambda x: x) - grouped['Alightings'].transform(lambda x: x)
         df['going_next_station'] = grouped['on_train'].cumsum()
       
         return df
     
+
+    def impute_missing_boardings(self, group):
+        for idx in range(0, len(group)-1):
+            diff = group.iloc[idx]['going_next_station'] - group.iloc[idx + 1]['Alightings']
+               
+            if diff < 0:
+                group.iloc[idx, group.columns.get_loc('Boardings')]  += abs(diff)
+                group['on_train'] = group['Boardings'].transform(lambda x: x) - group['Alightings'].transform(lambda x: x)
+                group['going_next_station'] = group['on_train'].cumsum()
+
+            if (idx == (len(group) - 2)) and (group.iloc[idx]['going_next_station'] - group.iloc[idx+1]['Alightings'] > 0):
+                diff = group.iloc[idx]['going_next_station'] - group.iloc[idx+1]['Alightings']
+                group.iloc[idx+1, group.columns.get_loc('Alightings')]  += abs(diff)
+                group['on_train'] = group['Boardings'].transform(lambda x: x) - group['Alightings'].transform(lambda x: x)
+                group['going_next_station'] = group['on_train'].cumsum()
+
+        #group['TripID'] = group['TrainID'].unique()[0] + '_' + str(randint(0, 600000))
+        if group['Boardings'].sum() != group['Alightings'].sum():
+            print(group['TrainID'].unique(), group['Boardings'].sum(), group['Alightings'].sum())
+            print(group)
+        return group
+        
 
     def calculate_emission_probabilities(self, df):
         stations = df['Station'].unique()
@@ -90,21 +140,21 @@ class DataPreprocessing:
     def calculate_initial_state(self, df):
 
         # Calculate the total number of boardings
-        total_boardings = df['Boardings'].sum()
-        station_boardings = df.groupby('Station')['Boardings'].sum().reset_index()
+        total_alightings= df['Alightings'].sum()
+        station_alightings = df.groupby('Station')['Alightings'].sum().reset_index()
 
-            # Adding a small constant for smoothing
+        # Adding a small constant for smoothing
         smoothing_constant = 1e-8
 
         # Calculate the total number of boardings
-        total_boardings = df['Boardings'].sum() + smoothing_constant * len(df['Station'].unique())
-        station_boardings = df.groupby('Station')['Boardings'].sum().reset_index()
+        total_alightings = df['Alightings'].sum() + smoothing_constant * len(df['Station'].unique())
+        station_alightings = df.groupby('Station')['Alightings'].sum().reset_index()
 
         # Calculate the probability of starting from each station
-        station_boardings['Start_Prob'] = (station_boardings['Boardings'] + smoothing_constant) / total_boardings
+        station_alightings['Start_Prob'] = (station_alightings['Alightings'] + smoothing_constant) / total_alightings
 
         # Normalize to ensure it sums to 1
-        normalized_startprob = station_boardings['Start_Prob'].values
+        normalized_startprob = station_alightings['Start_Prob'].values
         normalized_startprob /= np.sum(normalized_startprob)
         
         return np.array(normalized_startprob)
