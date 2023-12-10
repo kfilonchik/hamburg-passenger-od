@@ -1,5 +1,5 @@
 import seaborn as sns
-from preprocessing.preprocessing import DataPreprocessing
+from preprocessing import DataPreprocessing
 import matplotlib.pyplot as plt
 
 preprocessing = DataPreprocessing("data/sbahn_hamburg.csv")
@@ -7,6 +7,11 @@ df = preprocessing.create_df()
 df = preprocessing.rename_columns(df)
 df = preprocessing.change_datatypes(df)
 df = df.loc[df['sBahnID'] == 'S1']
+
+# Assuming df_corrected has a datetime column for the date of each observation
+# If the date is part of the 'dtmIstAnkunftDatum' and in the format 'dd.mm.yyyy hh:mm',
+# we need to extract the date part and convert it to datetime format
+
 
 df['Hour'] = df['Arrival'].dt.hour
 
