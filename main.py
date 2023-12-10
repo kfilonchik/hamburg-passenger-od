@@ -30,16 +30,16 @@ def add_smoothing_to_transmat(transmat, smoothing_constant=1e-8):
 
 
 def create_train_test_valid(df):
-    unique_train_ids = df['TrainID'].unique()
+    unique_train_ids = df['TripID'].unique()
 
     # Shuffle and split the Train IDs
-    train_ids, test_ids = train_test_split(unique_train_ids, test_size=0.2, random_state=42)
+    train_ids, test_ids = train_test_split(unique_train_ids, test_size=0.3, random_state=42)
     test_ids, val_ids = train_test_split(test_ids, test_size=0.5, random_state=42)
 
     # Reconstruct the datasets based on Train IDs
-    train_df = df[df['TrainID'].isin(train_ids)]
-    test_df = df[df['TrainID'].isin(test_ids)]
-    val_df = df[df['TrainID'].isin(val_ids)]
+    train_df = df[df['TripID'].isin(train_ids)]
+    test_df = df[df['TripID'].isin(test_ids)]
+    val_df = df[df['TripID'].isin(val_ids)]
 
     return train_df, test_df, val_df
 
@@ -55,12 +55,21 @@ def evaluate_model(preprocessing, df, observations):
 
     return log_likelihood, accuracy
 
+def enhance_data(df, preprocessing):
+    df = preprocessing.add_trip_id(df)
+    df = preprocessing.going_to_next_station(df)
+    df = df.groupby(['TripID']).apply(preprocessing.impute_missing_boardings).reset_index(drop=True)
+    df.to_csv('data/train_trips.csv', index=False,  sep=';', encoding='utf-8')
+
+    return df
+
+
 
 if __name__== '__main__':
     # Start pre-processing
-    preprocessing = DataPreprocessing("data/sbahn_hamburg.csv")
-
-    df = start_preprocessing(preprocessing)
+    preprocessing = DataPreprocessing("data/train_trips.csv")
+    #df = start_preprocessing(preprocessing)
+    df = preprocessing.create_df()
 
     # Split datasets into train, test and validation
     train, test, validation = create_train_test_valid(df)
@@ -69,14 +78,15 @@ if __name__== '__main__':
     observations_test, lengths_test, index_to_station_test = preprocessing.observations(test)
     observations_valid, lengths_valid, index_to_station_valid = preprocessing.observations(validation)
 
+
     # Start training
-    training = DataTraining(preprocessing, df, observations_train, lengths_train)
-    model = training.setup_hmmodel()
+    #training = DataTraining(preprocessing, df, observations_train, lengths_train)
+    #model = training.setup_hmmodel()
 
-    model = load('model/hmm_model.joblib')
+    #model = load('model/hmm_model.joblib')
 
-    generator = GenerateData(df, index_to_station_test, test, model)
-    eventlog = generator.generate_data()
+    #generator = GenerateData(df, index_to_station_test, test, model)
+    #eventlog = generator.generate_data()
 
 
 
