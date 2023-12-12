@@ -43,3 +43,33 @@ class DataTraining():
         dump(model, 'hmm_model.joblib')
 
         return model
+    
+    def fit_multinominal_model_parameters(self):
+        model = hmm.MultinomialHMM(n_components=self.preprocessing.hidden_states(self.df), n_iter=200, init_params='ste')
+        model.fit(self.observations)
+
+        print("Learned emission probs:")
+        print(model.emissionprob_)
+
+        print("Learned transition matrix:")
+        print(model.transmat_)
+        dump(model, 'hmm_model_trained_multinominal.joblib')
+        score =  model.score(self.observations)
+        print(score)
+
+        return model
+    
+    def fit_gauss_model_parameters(self):
+        model = hmm.GaussianHMM(n_components=self.preprocessing.hidden_states(self.df), n_iter=10, init_params='stmc')
+        model.fit(self.observations)
+
+        #print("Learned emission probs:")
+        #print(model.emissionprob_)
+
+        print("Learned transition matrix:")
+        print(model.transmat_)
+        dump(model, 'hmm_model_trained_3.joblib')
+        score =  model.score(self.observations)
+        print(score)
+
+        return model

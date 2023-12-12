@@ -43,7 +43,7 @@ def create_train_test_valid(df):
 
     return train_df, test_df, val_df
 
-def evaluate_model(preprocessing, df, observations):
+def evaluate_model(df, observations, model):
     y_test = list(df['Station'])
     log_likelihood = model.score(observations)
 
@@ -69,7 +69,7 @@ if __name__== '__main__':
     # Start pre-processing
     preprocessing = DataPreprocessing("data/train_trips.csv")
     #df = start_preprocessing(preprocessing)
-    df = preprocessing.create_df()
+    df = preprocessing.create_formatted()
 
     # Split datasets into train, test and validation
     train, test, validation = create_train_test_valid(df)
@@ -78,15 +78,33 @@ if __name__== '__main__':
     observations_test, lengths_test, index_to_station_test = preprocessing.observations(test)
     observations_valid, lengths_valid, index_to_station_valid = preprocessing.observations(validation)
 
+    training = DataTraining(preprocessing, df, observations_train, lengths_train)
+    model = training.fit_multinominal_model_parameters()
+    #model = training.fit_gauss_model_parameters()
+    
+    #print('Initial probabilities:', preprocessing.calculate_initial_state(train.loc[train['TripID'] == 2]))
+    #print('Transition probabilities:', preprocessing.calculate_transition_matrix(train.loc[train['TripID'] == 2]))
+    #print('Emission probabilities:', preprocessing.calculate_emission_probabilities(train.loc[train['TripID'] == 2]))
+
 
     # Start training
     #training = DataTraining(preprocessing, df, observations_train, lengths_train)
     #model = training.setup_hmmodel()
 
-    #model = load('model/hmm_model.joblib')
+    model = load('hmm_model_trained_3.joblib')
+    #score =  model.score(observations_test[:5])
+    #print(score)
 
-    #generator = GenerateData(df, index_to_station_test, test, model)
-    #eventlog = generator.generate_data()
+    # Generate samples
+    #X, Z = model.sample(10)
+    #print(X, Z, index_to_station_test)
+
+    #l, a = evaluate_model(df, observations_test[0:2], model)
+    #print('liklihood', l)
+    #print('accuracy', a)
+
+    generator = GenerateData(df, index_to_station_test, test, model)
+    eventlog = generator.generate_data()
 
 
 

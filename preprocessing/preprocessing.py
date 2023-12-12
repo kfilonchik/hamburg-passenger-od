@@ -13,6 +13,11 @@ class DataPreprocessing:
         df = pd.read_csv(self.fileName, delimiter=';', encoding='ISO-8859-1')
 
         return df
+    
+    def create_formatted(self):
+        df = pd.read_csv(self.fileName, delimiter=';', encoding='utf-8')
+
+        return df
 
     def rename_columns(self, dataset):
         dataset = dataset.rename(columns={"Einsteiger": "Boardings", "Aussteiger": "Alightings", "Zugnr": "TrainID","dtmIstAnkunftDatum": "Arrival", "dtmIstAbfahrtDatum": "Departure", "DS100 kurz": "StationNameShort", "strKurzbezeichnung": "sBahnID"})
@@ -69,14 +74,33 @@ class DataPreprocessing:
     
     def observations(self, df):
         stations = len(df['Station'].unique())
-        sequences = df.groupby('TripID').apply(lambda x: x[['Boardings', 'Alightings']].values.tolist())
-        sequences = np.array(sequences)
-        #observations = [obs for sequence in sequences for obs in sequence]
+        sequences = df.groupby('TripID').apply(lambda x: x[['Boardings'#, 'Alightings'
+                                                            ]].values.tolist())
+        
+        #sequences = np.array(sequences)
+        #print(sequences)
+        observations = [obs for sequence in sequences for obs in sequence]
         # Map station names to indices
         station_to_index = {station: idx for idx, station in enumerate(df['Station'].unique())}
         index_to_station = {idx: station for station, idx in station_to_index.items()}
-        observations = [seq + [(0, 0)] * (stations - len(seq)) for seq in sequences]
+        #max_length = max(len(seq) for seq in sequences)
+        #print(max_length)
+        #observations = [seq + [[0, 0]] * (max_length - len(seq)) for seq in sequences]
+        observations =  np.array([np.array(obs).flatten() for obs in observations])
+  
+        #print([i for i,x in enumerate(observations) if len(x) != 30])
+        #observations = sequences
         lengths = [len(sequence) for sequence in observations]
+        observations = np.array(observations)
+        print(observations[:10])
+        print(observations.shape)
+
+        #nsamples, nx, ny = observations.shape
+        #observations = observations.reshape((nsamples,nx*ny))
+
+        #observations = np.array(observations)
+        #observations =  np.reshape(observations,[len(observations),stations])
+        #print(observations)
 
         return observations, lengths, index_to_station
     
@@ -87,7 +111,7 @@ class DataPreprocessing:
       
         return df
     
-
+    
     def impute_missing_boardings(self, group):
         for idx in range(0, len(group)-1):
             diff = group.iloc[idx]['going_next_station'] - group.iloc[idx + 1]['Alightings']
@@ -111,6 +135,27 @@ class DataPreprocessing:
         
 
     def calculate_emission_probabilities(self, df):
+        '''
+        stations = df['Station'].unique()
+        n_stations = len(stations)
+
+        for i, station in enumerate(df['Station'].unique()):
+            station_data = df[df['Station'] == station]
+            
+            # Calculate frequency distribution of boarding categories
+            boarding_counts = station_data['Boardings'].sum()
+            total_boardings = df['Boardings'].sum()
+
+            # Fill in emission probabilities for the station
+            for j, station in enumerate(df['Station'].unique()):
+                emission_matrix[i, j] = boarding_counts.get(category, 0) / total_boardings
+
+        # Normalize emission matrix
+        emission_matrix /= np.sum(emission_matrix, axis=1, keepdims=True)
+
+        # Handle any NaN values due to division by zero
+        emission_matrix = np.nan_to_num(emission_matrix)
+        '''
         stations = df['Station'].unique()
         n_stations = len(stations)
         emission_probabilities = np.zeros((n_stations, 2))
@@ -134,7 +179,7 @@ class DataPreprocessing:
         # Check for NaN values
         if np.isnan(emission_probabilities).any():
             mission_probabilities = np.nan_to_num(mission_probabilities)
-
+        
         return emission_probabilities
     
     def calculate_initial_state(self, df):
@@ -161,6 +206,28 @@ class DataPreprocessing:
 
 
     def calculate_transition_matrix(self, df):
+        '''
+        num_stations = len(df['Station'].unique()) # Total number of stations
+        transition_matrix = np.zeros((num_stations, num_stations))
+
+        for i, station in enumerate(df['Station'].unique()):
+            station_data = df[df['Station'] == station]
+            
+            # Calculate frequency distribution of boarding categories
+            boardings = station_data['going_next_station'].sum()
+            alightings = station_data.loc[station_data['Station']== i+1]['Alightings'].sum()
+            print(boardings, alightings)
+
+            if boardings > 0:
+                 transition_matrix[i, i+1] = alightings / boardings
+
+        # Normalize the transition matrix
+        transition_matrix /= transition_matrix.sum(axis=1, keepdims=True)
+
+        # Handle any NaN values due to division by zero
+        transition_matrix = np.nan_to_num(transition_matrix)
+
+        '''
 
         df = self.going_to_next_station(df)
 
@@ -193,6 +260,7 @@ class DataPreprocessing:
             else:
                 # Handle the case where no transitions occur
                 transition_matrix[i, i] = 1
+      
         '''
         for i in range(len(transition_matrix)):
             row_sum = np.sum(transition_matrix[i]) 
@@ -206,9 +274,9 @@ class DataPreprocessing:
         '''
 
         # Check for NaN values
-        if np.isnan(transition_matrix).any():
-            transition_matrix = np.nan_to_num(transition_matrix)
-
+        #if np.isnan(transition_matrix).any():
+        #    transition_matrix = np.nan_to_num(transition_matrix)
+    
         return transition_matrix
 
 

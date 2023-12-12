@@ -32,6 +32,7 @@ class GenerateData():
                 event_log.append({
                     'PassengerID': row['Boardings'],
                     'BoardingStation': row['Station'],
+                    'TripID': row['TripID'],
                     'TrainID': row['TrainID'],
                     'AlightingStation': station,
                     'TimestampStart': row['Arrival'],
@@ -39,6 +40,6 @@ class GenerateData():
                 })
             
         event_log = pd.DataFrame(event_log)
-        event_log.to_csv('data/event_log.csv', index=False,  sep=';', encoding='utf-8')
+        event_log.to_csv('data/event_log2.csv', index=False,  sep=';', encoding='utf-8')
 
         return event_log
