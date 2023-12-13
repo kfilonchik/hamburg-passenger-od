@@ -71,16 +71,27 @@ if __name__== '__main__':
     #df = start_preprocessing(preprocessing)
     df = preprocessing.create_formatted()
 
+    df1 = df.loc[(df['Station']=='Airport')]['TripID'].values.tolist()
+    df = df[df['TripID'].isin(df1)]
+
     # Split datasets into train, test and validation
     train, test, validation = create_train_test_valid(df)
 
     observations_train, lengths_train, index_to_station_train = preprocessing.observations(train)
     observations_test, lengths_test, index_to_station_test = preprocessing.observations(test)
     observations_valid, lengths_valid, index_to_station_valid = preprocessing.observations(validation)
+    
+    trip = df.loc[df['TripID'] == 1]
 
-    training = DataTraining(preprocessing, df, observations_train, lengths_train)
-    model = training.fit_multinominal_model_parameters()
+    training = DataTraining(preprocessing, df, observations_train, lengths_train, trip)
+    #model = training.setup_hmmodel()
+    #model = training.fit_multinominal_model_parameters()
+    #transit = df.loc[df['TripID'] == 1].groupby('TripID').apply(preprocessing.calculate_transition_matrix)
+    #print(preprocessing.calculate_means(train))
+    #t = preprocessing.calculate_means(train)
+    #print(t.shape)
     #model = training.fit_gauss_model_parameters()
+ 
     
     #print('Initial probabilities:', preprocessing.calculate_initial_state(train.loc[train['TripID'] == 2]))
     #print('Transition probabilities:', preprocessing.calculate_transition_matrix(train.loc[train['TripID'] == 2]))
@@ -91,20 +102,23 @@ if __name__== '__main__':
     #training = DataTraining(preprocessing, df, observations_train, lengths_train)
     #model = training.setup_hmmodel()
 
-    model = load('hmm_model_trained_3.joblib')
-    #score =  model.score(observations_test[:5])
+    model = load('hmm_model_trained_9.joblib')
+    #score =  model.score(observations_valid[10:20])
     #print(score)
+    #print(model.transmat_)
 
     # Generate samples
     #X, Z = model.sample(10)
-    #print(X, Z, index_to_station_test)
+    #print(X, Z, index_to_station_valid)
+
+    #print(model.decode(observations_valid[300:310]))
 
     #l, a = evaluate_model(df, observations_test[0:2], model)
     #print('liklihood', l)
     #print('accuracy', a)
 
-    generator = GenerateData(df, index_to_station_test, test, model)
-    eventlog = generator.generate_data()
+    generator = GenerateData(df, index_to_station_test, validation, observations_valid,  model, preprocessing)
+    eventlog = generator.generate_data_2()
 
 
 
