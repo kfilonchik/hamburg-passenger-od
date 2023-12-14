@@ -13,7 +13,7 @@ class GenerateData():
         self.index_to_station_test = index_to_station_test
         self.preprocessing = preprocessing
 
-    def generate_data(self):
+    def generate_data_first(self):
 
         event_log = []
         test = self.test[960:968] # generate data based on first 1000 rows
@@ -47,7 +47,7 @@ class GenerateData():
         return event_log
     
 
-    def generate_data_2(self):
+    def generate_data_second(self):
         self.test['station_id'] = 0
 
         self.test = self.test.groupby(['TripID']).apply(self.preprocessing.numerate_stations)
@@ -60,21 +60,29 @@ class GenerateData():
 
         evlog = pd.DataFrame()
 
+        size_seq = [10, 2, 4, 3 , 12, 7, 8, 10, 13, 5, 7, 3, 2, 4, 10]
+        start = [800, 1000, 2000, 5000, 8000, 9000, 10000, 50, 15000, 12000, 5, 16000, 17400, 17800, 16425]
 
-        self.test = self.test[500:550] 
-        _, sequence_indices = self.model.decode(np.array(self.test['Boardings'].values.tolist()).reshape(-1,1), algorithm='viterbi') # decoding tuples
+        #self.test = self.test[500:550] 
+        #_, sequence_indices = self.model.decode(np.array(self.test['Boardings'].values.tolist()).reshape(-1,1), algorithm='viterbi') # decoding tuples
 
+        for i in range(len(size_seq)):
+            index1 = start[i]
+            index2 = start[i] + size_seq[i]
 
-        for i in range(len(self.test)):
-            if sequence_indices[i] > self.test[i:i+1]['station_id'].values:
-                data = self.test[i:sequence_indices[i]]
-                data['PassengerID'] = passengerid
-                evlog = pd.concat([evlog, data])
+            t = self.test[index1:index2] 
+            _, sequence_indices = self.model.decode(np.array(t['Boardings'].values.tolist()).reshape(-1,1), algorithm='viterbi') # decoding tuples
 
-            passengerid = passengerid + 1
-         
+            for i in range(len(t)):
+                if sequence_indices[i] > t[i:i+1]['station_id'].values:
+                    data = t[i:sequence_indices[i]]
+                    data['PassengerID'] = passengerid
+                    evlog = pd.concat([evlog, data])
 
-        evlog.to_csv('data/event_log3.csv', index=False,  sep=';', encoding='utf-8')
+                passengerid = passengerid + 1
+            
+
+        evlog.to_csv('data/event_log5.csv', index=False,  sep=';', encoding='utf-8')
 
 
 

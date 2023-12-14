@@ -93,7 +93,7 @@ class DataTraining():
         print(model.transmat_)
         print("Learned covariance matrix")
         print(model.covars_)
-        dump(model, 'hmm_model_trained_9.joblib')
+        dump(model, 'hmm_model_trained_10.joblib')
         score =  model.score(self.observations)
         print(score)
 

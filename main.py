@@ -67,10 +67,16 @@ def enhance_data(df, preprocessing):
 
 if __name__== '__main__':
     # Start pre-processing
+    filePath = "data/train_trips.csv"
     preprocessing = DataPreprocessing("data/train_trips.csv")
-    #df = start_preprocessing(preprocessing)
-    df = preprocessing.create_formatted()
+    df = start_preprocessing(preprocessing)
+    df = preprocessing.enhance_data(df, preprocessing)
 
+    # If you have already formatted and imputed data, please take out the rows 72/73 from code
+    #df = preprocessing.create_formatted()
+
+
+    # taking only outward journey
     df1 = df.loc[(df['Station']=='Airport')]['TripID'].values.tolist()
     df = df[df['TripID'].isin(df1)]
 
@@ -81,44 +87,26 @@ if __name__== '__main__':
     observations_test, lengths_test, index_to_station_test = preprocessing.observations(test)
     observations_valid, lengths_valid, index_to_station_valid = preprocessing.observations(validation)
     
+    # taking only first trip for transition matrix
     trip = df.loc[df['TripID'] == 1]
 
     training = DataTraining(preprocessing, df, observations_train, lengths_train, trip)
-    #model = training.setup_hmmodel()
-    #model = training.fit_multinominal_model_parameters()
-    #transit = df.loc[df['TripID'] == 1].groupby('TripID').apply(preprocessing.calculate_transition_matrix)
-    #print(preprocessing.calculate_means(train))
-    #t = preprocessing.calculate_means(train)
-    #print(t.shape)
-    #model = training.fit_gauss_model_parameters()
- 
+    model = training.fit_gauss_model_parameters()
+
+    model = load('model/hmm_model_trained_10.joblib')
+    score =  model.score(observations_valid[10:20])
+    print('Sequence of 10 variables:',  score)
+
+    score =  model.score(observations_valid[45:50])
+    print('Sequence of 5 variables:', score)
+
     
-    #print('Initial probabilities:', preprocessing.calculate_initial_state(train.loc[train['TripID'] == 2]))
-    #print('Transition probabilities:', preprocessing.calculate_transition_matrix(train.loc[train['TripID'] == 2]))
-    #print('Emission probabilities:', preprocessing.calculate_emission_probabilities(train.loc[train['TripID'] == 2]))
-
-
-    # Start training
-    #training = DataTraining(preprocessing, df, observations_train, lengths_train)
-    #model = training.setup_hmmodel()
-
-    model = load('hmm_model_trained_9.joblib')
-    #score =  model.score(observations_valid[10:20])
-    #print(score)
+    score =  model.score(observations_valid)
+    print('Whole datadset', score)
     #print(model.transmat_)
 
-    # Generate samples
-    #X, Z = model.sample(10)
-    #print(X, Z, index_to_station_valid)
-
-    #print(model.decode(observations_valid[300:310]))
-
-    #l, a = evaluate_model(df, observations_test[0:2], model)
-    #print('liklihood', l)
-    #print('accuracy', a)
-
     generator = GenerateData(df, index_to_station_test, validation, observations_valid,  model, preprocessing)
-    eventlog = generator.generate_data_2()
+    eventlog = generator.generate_data_second()
 
 
 
